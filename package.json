@@ -1,0 +1,19 @@
+{
+  "name": "japlan",
+  "version": "1.0.0",
+  "description": "JavaScript parser/serializer for Dyalog APL Array Notation (APLAN)",
+  "main": "aplan.js",
+  "type": "module",
+  "scripts": {
+    "test": "node aplan.test.js"
+  },
+  "keywords": [
+    "apl",
+    "dyalog",
+    "aplan",
+    "array-notation",
+    "parser",
+    "serializer"
+  ],
+  "license": "MIT"
+}
