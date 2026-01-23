@@ -222,6 +222,6 @@ APLAN Syntax:
 JavaScript Representation:
   • Scalars  → number | string | { re, im }
   • Vectors  → array
-  • Matrices → { __aplan_matrix__: true, shape: [...], data: [...] }
-  • Namespaces → { __aplan_ns__: true, ...properties }
+  • Matrices → nested array with _shape property
+  • Namespaces → object with APL_NS Symbol
 `);

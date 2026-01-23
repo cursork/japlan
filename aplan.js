@@ -34,6 +34,14 @@ const ZILDE = '⍬';
 // Separators: diamond, LF, CR, NEL
 const SEPARATORS = new Set([DIAMOND, '\n', '\r', '\x85']);
 
+// Zilde sentinel - empty array with marker property (frozen since it's immutably empty)
+const zilde = [];
+zilde._isZilde = true;
+Object.freeze(zilde);
+
+// Namespace marker - Symbol avoids collision with user keys and doesn't appear in Object.keys()
+const APL_NS = Symbol.for('aplan.namespace');
+
 // APL identifier start characters (simplified - covers common cases)
 const isNameStart = (ch) => /[A-Za-z_∆⍙Ⓐ-Ⓩ]/.test(ch) || (ch >= 'À' && ch <= 'ü');
 const isNameChar = (ch) => isNameStart(ch) || /[0-9]/.test(ch);
@@ -249,9 +257,9 @@ class Tokenizer {
  * Representation:
  * - Scalars: number, string, { re, im } for complex
  * - Vectors: arrays
- * - Matrices: { shape: [rows, cols, ...], data: flat array }
- * - Namespaces: { __aplan_ns__: true, ...properties }
- * - Zilde: { __aplan_zilde__: true } or []
+ * - Matrices: nested arrays with _shape property
+ * - Namespaces: objects with APL_NS Symbol property
+ * - Zilde: frozen empty array with _isZilde property
  */
 class Parser {
   constructor(tokens) {
@@ -306,7 +314,7 @@ class Parser {
     }
     if (token.type === TokenType.ZILDE) {
       this.advance();
-      return [];  // Empty numeric vector
+      return zilde;
     }
     if (token.type === TokenType.LPAREN) {
       return this.parseParenthesized();
@@ -359,7 +367,9 @@ class Parser {
     // Empty parentheses = empty namespace
     if (this.check(TokenType.RPAREN)) {
       this.advance();
-      return { __aplan_ns__: true };
+      const ns = {};
+      ns[APL_NS] = true;
+      return ns;
     }
 
     // Check if this is a namespace (name: value) or vector
@@ -376,7 +386,8 @@ class Parser {
    * Parse a namespace: (name: value ⋄ name2: value2)
    */
   parseNamespace() {
-    const ns = { __aplan_ns__: true };
+    const ns = {};
+    ns[APL_NS] = true;
 
     while (!this.check(TokenType.RPAREN) && !this.check(TokenType.EOF)) {
       // Skip separators
@@ -447,7 +458,9 @@ class Parser {
     // Empty brackets
     if (this.check(TokenType.RBRACKET)) {
       this.advance();
-      return { __aplan_matrix__: true, shape: [0], data: [] };
+      const result = [];
+      result._shape = [0];
+      return result;
     }
 
     const rows = [];
@@ -474,11 +487,13 @@ class Parser {
 /**
  * Convert array of rows to matrix representation
  * In APLAN, [a ⋄ b ⋄ c] creates a matrix where each element is a major cell
- * Scalars are coerced to 1-element vectors (per APLAN spec)
+ * Returns nested array with _shape property
  */
 function rowsToMatrix(rows) {
   if (rows.length === 0) {
-    return { __aplan_matrix__: true, shape: [0], data: [] };
+    const result = [];
+    result._shape = [0];
+    return result;
   }
 
   // Determine the shape of each row
@@ -495,9 +510,9 @@ function rowsToMatrix(rows) {
     })));
   }
 
-  // Flatten and pad each row
-  const flatData = [];
+  // Build nested array structure
   const cellSize = maxShape.reduce((a, b) => a * b, 1);
+  const result = [];
 
   for (const row of rows) {
     const flat = flatten(row);
@@ -505,14 +520,40 @@ function rowsToMatrix(rows) {
     while (flat.length < cellSize) {
       flat.push(0);
     }
-    flatData.push(...flat);
+    // If row shape is 1D, keep as flat array; otherwise nest
+    if (maxShape.length === 1) {
+      result.push(flat);
+    } else {
+      result.push(rebuildNested(flat, maxShape));
+    }
   }
 
-  return {
-    __aplan_matrix__: true,
-    shape: [rows.length, ...maxShape],
-    data: flatData
-  };
+  result._shape = [rows.length, ...maxShape];
+  return result;
+}
+
+/**
+ * Rebuild a flat array into nested structure based on shape
+ */
+function rebuildNested(flat, shape) {
+  if (shape.length === 1) {
+    return flat.slice(0, shape[0]);
+  }
+
+  const result = [];
+  const subShape = shape.slice(1);
+  const subSize = subShape.reduce((a, b) => a * b, 1);
+
+  for (let i = 0; i < shape[0]; i++) {
+    const subFlat = flat.slice(i * subSize, (i + 1) * subSize);
+    if (subShape.length === 1) {
+      result.push(subFlat);
+    } else {
+      result.push(rebuildNested(subFlat, subShape));
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -522,8 +563,8 @@ function getShape(value) {
   if (value === null || value === undefined) return [];
   if (typeof value === 'number' || typeof value === 'string') return [];
   if (typeof value === 'object' && value.re !== undefined) return []; // Complex
-  if (value.__aplan_matrix__) return value.shape;
   if (Array.isArray(value)) {
+    if (value._shape) return value._shape;
     if (value.length === 0) return [0];
     // Check if all elements have same shape (for nested arrays)
     return [value.length];
@@ -539,7 +580,6 @@ function flatten(value) {
   if (typeof value === 'number') return [value];
   if (typeof value === 'string') return [value];
   if (typeof value === 'object' && value.re !== undefined) return [value];
-  if (value.__aplan_matrix__) return [...value.data];
   if (Array.isArray(value)) {
     const result = [];
     for (const el of value) {
@@ -564,6 +604,11 @@ class Serializer {
       return '⍬';
     }
 
+    // Zilde sentinel (check both identity and property)
+    if (value === zilde || (Array.isArray(value) && value._isZilde)) {
+      return '⍬';
+    }
+
     // Complex number
     if (typeof value === 'object' && value.re !== undefined && value.im !== undefined) {
       return this.serializeComplex(value);
@@ -579,13 +624,13 @@ class Serializer {
       return this.serializeString(value);
     }
 
-    // Matrix
-    if (value.__aplan_matrix__) {
+    // Matrix (array with _shape property)
+    if (Array.isArray(value) && value._shape) {
       return this.serializeMatrix(value, depth);
     }
 
     // Namespace
-    if (value.__aplan_ns__) {
+    if (value[APL_NS]) {
       return this.serializeNamespace(value, depth);
     }
 
@@ -596,7 +641,9 @@ class Serializer {
 
     // Object without marker - treat as namespace
     if (typeof value === 'object') {
-      return this.serializeNamespace({ __aplan_ns__: true, ...value }, depth);
+      const ns = { ...value };
+      ns[APL_NS] = true;
+      return this.serializeNamespace(ns, depth);
     }
 
     throw new Error(`Cannot serialize value: ${typeof value}`);
@@ -651,18 +698,16 @@ class Serializer {
   }
 
   serializeMatrix(m, depth) {
-    const { shape, data } = m;
+    const shape = m._shape;
 
     if (shape.length === 0 || shape[0] === 0) {
       return '[]';
     }
 
-    // Calculate row size
-    const rowSize = shape.slice(1).reduce((a, b) => a * b, 1);
     const rows = [];
 
-    for (let i = 0; i < shape[0]; i++) {
-      const rowData = data.slice(i * rowSize, (i + 1) * rowSize);
+    for (let i = 0; i < m.length; i++) {
+      const rowData = flatten(m[i]);
 
       // If row is simple numbers, format as strand
       if (rowData.every(el => typeof el === 'number')) {
@@ -681,7 +726,7 @@ class Serializer {
   }
 
   serializeNamespace(ns, depth) {
-    const entries = Object.entries(ns).filter(([k]) => !k.startsWith('__aplan_'));
+    const entries = Object.entries(ns);
 
     if (entries.length === 0) {
       return '()';
@@ -700,6 +745,60 @@ class Serializer {
   getSeparator(depth) {
     return this.useDiamond ? ` ${DIAMOND} ` : '\n';
   }
+}
+
+/**
+ * Get element from array by index
+ * Works with nested arrays and matrix objects
+ * @param {any} value - Array or matrix to index into
+ * @param {number|number[]} index - Single index or array of indices
+ * @returns {any} The element at the given index
+ */
+function get(value, index) {
+  // Normalize index to array
+  const indices = Array.isArray(index) ? index : [index];
+
+  // Handle zilde
+  if (value === zilde) {
+    throw new Error('Cannot index into zilde (empty array)');
+  }
+
+  // Handle matrix objects (arrays with _shape) - just use nested indexing
+  if (Array.isArray(value) && value._shape) {
+    const shape = value._shape;
+
+    if (indices.length !== shape.length) {
+      throw new Error(`Index rank ${indices.length} does not match array rank ${shape.length}`);
+    }
+
+    // Just traverse the nested array
+    let current = value;
+    for (let i = 0; i < indices.length; i++) {
+      if (indices[i] < 0 || indices[i] >= shape[i]) {
+        throw new Error(`Index ${indices[i]} out of bounds for dimension ${i} with size ${shape[i]}`);
+      }
+      current = current[indices[i]];
+    }
+
+    return current;
+  }
+
+  // Handle nested arrays
+  if (Array.isArray(value)) {
+    let current = value;
+    for (let i = 0; i < indices.length; i++) {
+      if (!Array.isArray(current)) {
+        throw new Error(`Cannot index deeper: reached non-array at depth ${i}`);
+      }
+      if (indices[i] < 0 || indices[i] >= current.length) {
+        throw new Error(`Index ${indices[i]} out of bounds for array of length ${current.length}`);
+      }
+      current = current[indices[i]];
+    }
+    return current;
+  }
+
+  throw new Error(`Cannot index into value of type ${typeof value}`);
 }
 
 /**
@@ -725,6 +824,15 @@ function serialize(value, options = {}) {
  */
 function equal(a, b) {
   if (a === b) return true;
+
+  // Zilde equals empty array (check identity or _isZilde property)
+  const aIsZilde = a === zilde || (Array.isArray(a) && a._isZilde);
+  const bIsZilde = b === zilde || (Array.isArray(b) && b._isZilde);
+  if ((aIsZilde && Array.isArray(b) && b.length === 0) ||
+      (bIsZilde && Array.isArray(a) && a.length === 0)) {
+    return true;
+  }
+
   if (typeof a !== typeof b) return false;
 
   if (typeof a === 'number') {
@@ -747,14 +855,14 @@ function equal(a, b) {
       return a.every((el, i) => equal(el, b[i]));
     }
 
-    // Matrices
-    if (a.__aplan_matrix__ && b.__aplan_matrix__) {
-      return equal(a.shape, b.shape) && equal(a.data, b.data);
+    // Matrices (arrays with _shape)
+    if (Array.isArray(a) && a._shape && Array.isArray(b) && b._shape) {
+      return equal(a._shape, b._shape) && equal([...a], [...b]);
     }
 
     // Objects/Namespaces
-    const keysA = Object.keys(a).filter(k => !k.startsWith('__aplan_'));
-    const keysB = Object.keys(b).filter(k => !k.startsWith('__aplan_'));
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
     if (keysA.length !== keysB.length) return false;
     return keysA.every(k => equal(a[k], b[k]));
   }
@@ -764,8 +872,8 @@ function equal(a, b) {
 
 // Export for Node.js
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parse, serialize, equal, Tokenizer, Parser, Serializer };
+  module.exports = { parse, serialize, equal, get, zilde, APL_NS, Tokenizer, Parser, Serializer };
 }
 
 // Export for ES modules
-export { parse, serialize, equal, Tokenizer, Parser, Serializer };
+export { parse, serialize, equal, get, zilde, APL_NS, Tokenizer, Parser, Serializer };

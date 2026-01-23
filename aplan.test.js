@@ -4,7 +4,7 @@
  * Run with: node aplan.test.js
  */
 
-import { parse, serialize, equal } from './aplan.js';
+import { parse, serialize, equal, get, zilde, APL_NS } from './aplan.js';
 
 let passed = 0;
 let failed = 0;
@@ -123,6 +123,113 @@ test('zilde (empty vector)', () => {
   assertEq(parse('⍬'), []);
 });
 
+test('zilde is sentinel', () => {
+  const result = parse('⍬');
+  assert(result === zilde, 'parsed zilde should === zilde sentinel');
+});
+
+test('zilde sentinel is frozen', () => {
+  assert(Object.isFrozen(zilde), 'zilde should be frozen');
+});
+
+test('serialize zilde sentinel', () => {
+  assertEq(serialize(zilde), '⍬');
+});
+
+test('zilde round-trip with sentinel', () => {
+  const parsed = parse('⍬');
+  assert(parsed === zilde);
+  const serialized = serialize(parsed);
+  assertEq(serialized, '⍬');
+  const reparsed = parse(serialized);
+  assert(reparsed === zilde);
+});
+
+// ============== Get Function ==============
+console.log('\n--- Get Function ---');
+
+test('get from simple array', () => {
+  const arr = [1, 2, 3];
+  assertEq(get(arr, 0), 1);
+  assertEq(get(arr, 1), 2);
+  assertEq(get(arr, 2), 3);
+});
+
+test('get from array with array index', () => {
+  const arr = [1, 2, 3];
+  assertEq(get(arr, [1]), 2);
+});
+
+test('get from nested array', () => {
+  const arr = [[1, 2], [3, 4]];
+  assertEq(get(arr, [0, 0]), 1);
+  assertEq(get(arr, [0, 1]), 2);
+  assertEq(get(arr, [1, 0]), 3);
+  assertEq(get(arr, [1, 1]), 4);
+});
+
+test('get from parsed nested vector', () => {
+  const parsed = parse('((1 2) ⋄ (3 4))');
+  assertEq(get(parsed, [0, 0]), 1);
+  assertEq(get(parsed, [1, 1]), 4);
+});
+
+test('get from matrix', () => {
+  const mat = parse('[1 2 ⋄ 3 4]');
+  assertEq(get(mat, [0, 0]), 1);
+  assertEq(get(mat, [0, 1]), 2);
+  assertEq(get(mat, [1, 0]), 3);
+  assertEq(get(mat, [1, 1]), 4);
+});
+
+test('get from 3x3 matrix', () => {
+  const mat = parse('[1 2 3 ⋄ 4 5 6 ⋄ 7 8 9]');
+  assertEq(get(mat, [0, 0]), 1);
+  assertEq(get(mat, [1, 1]), 5);
+  assertEq(get(mat, [2, 2]), 9);
+  assertEq(get(mat, [2, 0]), 7);
+});
+
+test('get outer element from nested array', () => {
+  const arr = [[1, 2], [3, 4]];
+  assertEq(get(arr, 0), [1, 2]);
+  assertEq(get(arr, 1), [3, 4]);
+});
+
+test('get throws on zilde', () => {
+  let threw = false;
+  try {
+    get(zilde, 0);
+  } catch (e) {
+    threw = true;
+    assert(e.message.includes('zilde'), 'error should mention zilde');
+  }
+  assert(threw, 'should throw on zilde');
+});
+
+test('get throws on out of bounds', () => {
+  let threw = false;
+  try {
+    get([1, 2, 3], 5);
+  } catch (e) {
+    threw = true;
+    assert(e.message.includes('out of bounds'), 'error should mention out of bounds');
+  }
+  assert(threw, 'should throw on out of bounds');
+});
+
+test('get throws on matrix index rank mismatch', () => {
+  const mat = parse('[1 2 ⋄ 3 4]');
+  let threw = false;
+  try {
+    get(mat, 0); // should require [row, col]
+  } catch (e) {
+    threw = true;
+    assert(e.message.includes('rank'), 'error should mention rank');
+  }
+  assert(threw, 'should throw on rank mismatch');
+});
+
 // ============== Vectors ==============
 console.log('\n--- Vectors ---');
 
@@ -163,30 +270,35 @@ console.log('\n--- Matrices ---');
 
 test('simple matrix', () => {
   const result = parse('[1 2 ⋄ 3 4]');
-  assertEq(result.__aplan_matrix__, true);
-  assertEq(result.shape, [2, 2]);
-  assertEq(result.data, [1, 2, 3, 4]);
+  assert(Array.isArray(result), 'matrix should be array');
+  assertEq(result._shape, [2, 2]);
+  assertEq(result[0], [1, 2]);
+  assertEq(result[1], [3, 4]);
 });
 
 test('column matrix', () => {
   const result = parse('[1 ⋄ 2 ⋄ 3]');
-  assertEq(result.__aplan_matrix__, true);
-  assertEq(result.shape, [3, 1]);
-  assertEq(result.data, [1, 2, 3]);
+  assert(Array.isArray(result), 'matrix should be array');
+  assertEq(result._shape, [3, 1]);
+  assertEq(result[0], [1]);
+  assertEq(result[1], [2]);
+  assertEq(result[2], [3]);
 });
 
 test('matrix with different row lengths (padding)', () => {
   const result = parse('[1 2 ⋄ 3 4 5]');
-  assertEq(result.__aplan_matrix__, true);
-  assertEq(result.shape, [2, 3]);
+  assert(Array.isArray(result), 'matrix should be array');
+  assertEq(result._shape, [2, 3]);
   // First row should be padded with 0
-  assertEq(result.data, [1, 2, 0, 3, 4, 5]);
+  assertEq(result[0], [1, 2, 0]);
+  assertEq(result[1], [3, 4, 5]);
 });
 
 test('empty brackets', () => {
   const result = parse('[]');
-  assertEq(result.__aplan_matrix__, true);
-  assertEq(result.shape, [0]);
+  assert(Array.isArray(result), 'empty matrix should be array');
+  assertEq(result._shape, [0]);
+  assertEq(result.length, 0);
 });
 
 // ============== Namespaces ==============
@@ -194,12 +306,12 @@ console.log('\n--- Namespaces ---');
 
 test('empty namespace', () => {
   const result = parse('()');
-  assertEq(result.__aplan_ns__, true);
+  assertEq(result[APL_NS], true);
 });
 
 test('simple namespace', () => {
   const result = parse('(x: 1 ⋄ y: 2)');
-  assertEq(result.__aplan_ns__, true);
+  assertEq(result[APL_NS], true);
   assertEq(result.x, 1);
   assertEq(result.y, 2);
 });
@@ -216,7 +328,7 @@ test('namespace with array value', () => {
 
 test('nested namespace', () => {
   const result = parse('(outer: (inner: 42))');
-  assertEq(result.outer.__aplan_ns__, true);
+  assertEq(result.outer[APL_NS], true);
   assertEq(result.outer.inner, 42);
 });
 
@@ -229,8 +341,8 @@ test('TABLES.apla style', () => {
  'MEMBERS'    'Members.csv'
 ]`;
   const result = parse(source);
-  assertEq(result.__aplan_matrix__, true);
-  assertEq(result.shape[0], 2); // 2 rows
+  assert(Array.isArray(result), 'should be array');
+  assertEq(result._shape[0], 2); // 2 rows
 });
 
 test('nested parentheses', () => {
@@ -284,7 +396,9 @@ test('serialize complex number', () => {
 });
 
 test('serialize namespace', () => {
-  const result = serialize({ __aplan_ns__: true, x: 1, y: 2 }, { useDiamond: true });
+  const ns = { x: 1, y: 2 };
+  ns[APL_NS] = true;
+  const result = serialize(ns, { useDiamond: true });
   assert(result.includes('x: 1'));
   assert(result.includes('y: 2'));
 });
@@ -354,29 +468,32 @@ console.log('\n--- Matrix Round-trips ---');
 test('round-trip: simple matrix', () => {
   const source = '[1 2 ⋄ 3 4]';
   const parsed = parse(source);
-  assertEq(parsed.__aplan_matrix__, true);
-  assertEq(parsed.shape, [2, 2]);
-  assertEq(parsed.data, [1, 2, 3, 4]);
+  assertEq(parsed._shape, [2, 2]);
+  assertEq(parsed[0], [1, 2]);
+  assertEq(parsed[1], [3, 4]);
 
   const serialized = serialize(parsed, { useDiamond: true });
   const reparsed = parse(serialized);
-  assertEq(reparsed.shape, [2, 2]);
-  assertEq(reparsed.data, [1, 2, 3, 4]);
+  assertEq(reparsed._shape, [2, 2]);
+  assertEq(reparsed[0], [1, 2]);
+  assertEq(reparsed[1], [3, 4]);
 });
 
 test('round-trip: string matrix', () => {
   const source = "['a' 'b' ⋄ 'c' 'd']";
   const parsed = parse(source);
-  assertEq(parsed.__aplan_matrix__, true);
-  assertEq(parsed.shape, [2, 2]);
-  assertEq(parsed.data, ['a', 'b', 'c', 'd']);
+  assertEq(parsed._shape, [2, 2]);
+  assertEq(parsed[0], ['a', 'b']);
+  assertEq(parsed[1], ['c', 'd']);
 });
 
 test('round-trip: column matrix', () => {
   const source = '[1 ⋄ 2 ⋄ 3]';
   const parsed = parse(source);
-  assertEq(parsed.shape, [3, 1]);
-  assertEq(parsed.data, [1, 2, 3]);
+  assertEq(parsed._shape, [3, 1]);
+  assertEq(parsed[0], [1]);
+  assertEq(parsed[1], [2]);
+  assertEq(parsed[2], [3]);
 });
 
 // ============== Complex Nesting ==============
@@ -387,15 +504,15 @@ test('vector containing matrices', () => {
   const parsed = parse(source);
   assert(Array.isArray(parsed));
   assertEq(parsed.length, 2);
-  assertEq(parsed[0].__aplan_matrix__, true);
-  assertEq(parsed[1].__aplan_matrix__, true);
+  assert(parsed[0]._shape, 'first element should have _shape');
+  assert(parsed[1]._shape, 'second element should have _shape');
 });
 
 test('namespace with matrix value', () => {
   const source = "(data: [1 2 ⋄ 3 4] ⋄ name: 'test')";
   const parsed = parse(source);
-  assertEq(parsed.__aplan_ns__, true);
-  assertEq(parsed.data.__aplan_matrix__, true);
+  assertEq(parsed[APL_NS], true);
+  assert(parsed.data._shape, 'data should have _shape');
 });
 
 test('deeply nested vectors', () => {
@@ -434,8 +551,8 @@ test('Event table pattern', () => {
  2   'MouseUp'
 ]`;
   const parsed = parse(source);
-  assertEq(parsed.__aplan_matrix__, true);
-  assertEq(parsed.shape[0], 3); // 3 rows
+  assert(Array.isArray(parsed), 'should be array');
+  assertEq(parsed._shape[0], 3); // 3 rows
 });
 
 // ============== Special Number Formats ==============

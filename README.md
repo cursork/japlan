@@ -29,10 +29,10 @@ const vector = parse('(1 ⋄ 2 ⋄ 3)');
 // → [1, 2, 3]
 
 const matrix = parse('[1 2 ⋄ 3 4]');
-// → { __aplan_matrix__: true, shape: [2, 2], data: [1, 2, 3, 4] }
+// → [[1, 2], [3, 4]] with _shape: [2, 2]
 
 const namespace = parse('(x: 42 ⋄ y: 100)');
-// → { __aplan_ns__: true, x: 42, y: 100 }
+// → { x: 42, y: 100 } with APL_NS Symbol
 
 // Serialize JavaScript to APLAN
 serialize([1, 2, 3]);
@@ -168,17 +168,17 @@ Square brackets with separators create matrices where each separated element bec
 
 ```javascript
 parse('[1 2 ⋄ 3 4]')
-// → { __aplan_matrix__: true, shape: [2, 2], data: [1, 2, 3, 4] }
+// → [[1, 2], [3, 4]] with _shape: [2, 2]
 
 parse('[1 ⋄ 2 ⋄ 3]')
-// → { __aplan_matrix__: true, shape: [3, 1], data: [1, 2, 3] }
+// → [[1], [2], [3]] with _shape: [3, 1]
 ```
 
 **Automatic padding**: Rows with different lengths are padded with zeros:
 
 ```javascript
 parse('[1 2 ⋄ 3 4 5]')
-// → { shape: [2, 3], data: [1, 2, 0, 3, 4, 5] }
+// → [[1, 2, 0], [3, 4, 5]] with _shape: [2, 3]
 // First row padded: [1, 2, 0]
 ```
 
@@ -202,11 +202,16 @@ Parentheses with `name: value` pairs create namespaces:
 ```
 
 ```javascript
+import { APL_NS } from './aplan.js';
+
 parse('(x: 1 ⋄ y: 2)')
-// → { __aplan_ns__: true, x: 1, y: 2 }
+// → { x: 1, y: 2 } with APL_NS Symbol
 
 parse('()')
-// → { __aplan_ns__: true }
+// → {} with APL_NS Symbol
+
+// Check if value is a namespace:
+if (value[APL_NS]) { ... }
 ```
 
 **Valid names**: APL identifiers (letters, digits, `∆`, `⍙`, starting with letter/underscore).
@@ -232,35 +237,34 @@ parse('(1 ⋄ 2 ⋄ 3)')  // → [1, 2, 3]
 
 ### Matrices
 
-Objects with shape and flattened data:
+Nested arrays with a `_shape` property:
 
 ```javascript
 parse('[1 2 ⋄ 3 4]')
-// → {
-//     __aplan_matrix__: true,
-//     shape: [2, 2],
-//     data: [1, 2, 3, 4]
-// }
+// → [[1, 2], [3, 4]]
+// with _shape: [2, 2]
 ```
 
 To access element at row `r`, column `c`:
 ```javascript
 const m = parse('[1 2 3 ⋄ 4 5 6]');
-const cols = m.shape[1];
-const element = m.data[r * cols + c];
+const element = m[r][c];
+// or use the get() helper:
+get(m, [r, c]);
 ```
 
 ### Namespaces
 
-Objects with marker property:
+Plain objects with a `APL_NS` Symbol (doesn't appear in `Object.keys()`):
 
 ```javascript
-parse('(x: 1 ⋄ y: 2)')
-// → {
-//     __aplan_ns__: true,
-//     x: 1,
-//     y: 2
-// }
+import { APL_NS } from './aplan.js';
+
+const ns = parse('(x: 1 ⋄ y: 2)');
+// → { x: 1, y: 2 }
+
+ns[APL_NS]  // → true
+Object.keys(ns) // → ['x', 'y'] (Symbol not included)
 ```
 
 ## API Reference
@@ -273,8 +277,8 @@ Parse an APLAN string into a JavaScript value.
 parse('42')                    // → 42
 parse("'hello'")               // → "hello"
 parse('(1 ⋄ 2 ⋄ 3)')           // → [1, 2, 3]
-parse('[1 2 ⋄ 3 4]')           // → { __aplan_matrix__: true, ... }
-parse('(x: 1)')                // → { __aplan_ns__: true, x: 1 }
+parse('[1 2 ⋄ 3 4]')           // → [[1,2],[3,4]] with _shape
+parse('(x: 1)')                // → { x: 1 } with APL_NS
 ```
 
 ### `serialize(value: any, options?: object): string`
@@ -392,7 +396,6 @@ For full APL expression evaluation, use Dyalog APL's `⎕SE.Dyalog.Array.Deseria
 
 ```bash
 npm test
-# Runs 69 tests covering parsing, serialization, and round-trips
 ```
 
 ## References
