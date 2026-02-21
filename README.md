@@ -23,6 +23,34 @@ serialize({ x: 1, y: 2 });   // → "(\n x: 1\n y: 2\n)"
 
 See [demo.md](demo.md) for comprehensive examples.
 
+## Testing
+
+A simple `npm test` will run the unit tests in `japlan.test.js`. Use `npm run test:all` to run everything.
+
+* `readme.test.js` - attempts to validate that any code inside this document works
+* `dyalog.test.js` - compares results against a running dyalog - NOTA BENE: requires [gritt](https://github.com/cursork/gritt) on your path for this moment
+* `cli.test.js` - sanity checks the CLI for testing
+
+### CLI
+
+**VERY WIP**, with the possibility it might not get more attention. Extremely
+simple way to test from the command line. Doesn't support multiline, for example.
+
+_Optionally_ install globally, using your checkout:
+
+```bash
+npm link
+```
+
+The below `japlan` commands can be replaced by `node cli.js`, if you do not do
+the link command above.
+
+```bash
+japlan a2j '(a: 1 ⋄ b: 2)'    # APLAN → JSON
+japlan j2a '{"a": 1, "b": 2}' # JSON → APLAN
+japlan                        # REPL (.a2j/.j2a to switch mode)
+```
+
 ## JavaScript Representation
 
 ### Numbers
@@ -106,12 +134,6 @@ Index into arrays or matrices: `get(xs, idx)` or `get(matrix, [row, col])`
 ### Exports
 
 `parse`, `serialize`, `equal`, `get`, `zilde`, `_ns`
-
-## Testing
-
-```bash
-npm test
-```
 
 ## References
 

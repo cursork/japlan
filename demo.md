@@ -378,7 +378,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-('a' ⋄ 'b' ⋄ 'c')
+(
+ 'a'
+ 'b'
+ 'c'
+)
 ```
 
 ---
@@ -466,7 +470,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(1 ⋄ 'two' ⋄ 3)
+(
+ 1
+ 'two'
+ 3
+)
 ```
 
 ### Nested vectors
@@ -491,7 +499,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(1 2 ⋄ 3 4)
+(
+ 1 2
+ 3 4
+)
 ```
 
 ### Single element (trailing sep)
@@ -554,16 +565,12 @@ This is not a demo for learning - more to test that all features work...
 
 **Parsed:**
 ```javascript
-[
-  "a",
-  "b",
-  "c"
-]
+"abc"
 ```
 
 **Output:**
 ```apl
-('a' ⋄ 'b' ⋄ 'c')
+'abc'
 ```
 
 ### Strands in vector
@@ -588,7 +595,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(1 2 ⋄ 3 4)
+(
+ 1 2
+ 3 4
+)
 ```
 
 ### Strands different lengths
@@ -614,7 +624,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(1 2 ⋄ 3 4 5)
+(
+ 1 2
+ 3 4 5
+)
 ```
 
 ### Deeply nested
@@ -651,7 +664,13 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-((1 2 ⋄ 3 4) ⋄ (5 6 ⋄ 7 8))
+((
+ 1 2
+ 3 4
+) ⋄ (
+ 5 6
+ 7 8
+))
 ```
 
 ### Multiple separators ignored
@@ -719,7 +738,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[1 2 ⋄ 3 4]
+[
+ 1 2
+ 3 4
+]
 ```
 
 ### 2×3 matrix
@@ -746,7 +768,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[1 2 3 ⋄ 4 5 6]
+[
+ 1 2 3
+ 4 5 6
+]
 ```
 
 ### 3×1 column matrix
@@ -772,7 +797,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[1 ⋄ 2 ⋄ 3]
+[
+ 1
+ 2
+ 3
+]
 ```
 
 ### Padding shorter rows
@@ -799,7 +828,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[1 2 0 ⋄ 3 4 5]
+[
+ 1 2 0
+ 3 4 5
+]
 ```
 
 ### String matrix
@@ -824,23 +856,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-['a' 'b' ⋄ 'c' 'd']
-```
-
-### Empty brackets
-
-```apl
-[]
-```
-
-**Parsed:**
-```javascript
-[]
-```
-
-**Output:**
-```apl
-[]
+[
+ 'a' 'b'
+ 'c' 'd'
+]
 ```
 
 ### Matrix with newlines
@@ -876,7 +895,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[1 2 3 ⋄ 4 5 6 ⋄ 7 8 9]
+[
+ 1 2 3
+ 4 5 6
+ 7 8 9
+]
 ```
 
 ---
@@ -915,7 +938,9 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(x: 42)
+(
+ x: 42
+)
 ```
 
 ### Multiple members
@@ -934,7 +959,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(x: 1 ⋄ y: 2)
+(
+ x: 1
+ y: 2
+)
 ```
 
 ### String value
@@ -952,7 +980,9 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(name: 'John')
+(
+ name: 'John'
+)
 ```
 
 ### Array value
@@ -974,7 +1004,9 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(data: 1 2 3)
+(
+ data: 1 2 3
+)
 ```
 
 ### Matrix value
@@ -1001,7 +1033,12 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(grid: [1 2 ⋄ 3 4])
+(
+ grid: [
+ 1 2
+ 3 4
+]
+)
 ```
 
 ### Nested namespace
@@ -1021,7 +1058,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(outer: (inner: 42))
+(
+ outer: (
+ inner: 42
+)
+)
 ```
 
 ### Mixed types
@@ -1044,7 +1085,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(name: 'test' ⋄ value: 42 ⋄ data: 1 2)
+(
+ name: 'test'
+ value: 42
+ data: 1 2
+)
 ```
 
 ---
@@ -1087,7 +1132,12 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[0 'All' ⋄ 1 'MouseDown' ⋄ 2 'MouseUp' ⋄ 3 'MouseMove']
+[
+ 0 'All'
+ 1 'MouseDown'
+ 2 'MouseUp'
+ 3 'MouseMove'
+]
 ```
 
 ### Config table (TABLES.apla)
@@ -1120,7 +1170,11 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-['USERS' 'Users.csv' ⋄ 'MEMBERS' 'Members.csv' ⋄ 'WORK' 'Worklists.csv']
+[
+ 'USERS' 'Users.csv'
+ 'MEMBERS' 'Members.csv'
+ 'WORK' 'Worklists.csv'
+]
 ```
 
 ### Grid defaults pattern
@@ -1162,7 +1216,10 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-('Grid' ⋄ 0 ⋄ 112 137 ⋄ 225 275 ⋄ 'Inherit' ⋄ ('None' ⋄ 'None'))
+('Grid' ⋄ 0 ⋄ 112 137 ⋄ 225 275 ⋄ 'Inherit' ⋄ (
+ 'None'
+ 'None'
+))
 ```
 
 ### Class list
@@ -1196,7 +1253,12 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-['Primitive ' ⋄ 'System    ' ⋄ 'Tacit     ' ⋄ 'Dfn       ']
+[
+ 'Primitive '
+ 'System    '
+ 'Tacit     '
+ 'Dfn       '
+]
 ```
 
 ---
@@ -1238,7 +1300,13 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-([1 2 ⋄ 3 4] ⋄ [5 6 ⋄ 7 8])
+([
+ 1 2
+ 3 4
+] ⋄ [
+ 5 6
+ 7 8
+])
 ```
 
 ### Namespace with matrix
@@ -1266,7 +1334,13 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-(name: 'data' ⋄ matrix: [1 2 ⋄ 3 4])
+(
+ name: 'data'
+ matrix: [
+ 1 2
+ 3 4
+]
+)
 ```
 
 ### Matrix of nested vectors
@@ -1291,12 +1365,15 @@ This is not a demo for learning - more to test that all features work...
 
 **Output:**
 ```apl
-[1 2 ⋄ 3 4]
+[
+ 1 2
+ 3 4
+]
 ```
 
 ---
 
-## MATRIX MODIFICATION ROUNDTRIP
+## MATRIX MODIFICATION WORKFLOW
 
 ### Receive matrix, modify cell, re-transmit
 
@@ -1323,5 +1400,8 @@ serialize(mat)
 
 **Output:**
 ```apl
-[1 99 ⋄ 3 4]
+[
+ 1 99
+ 3 4
+]
 ```

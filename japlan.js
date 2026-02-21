@@ -158,7 +158,12 @@ class Tokenizer {
           imagStr += this.advance();
         }
       }
-      return { type: TokenType.NUMBER, value: { re: parseFloat(numStr), im: parseFloat(imagStr) } };
+      const im = parseFloat(imagStr);
+      // If imaginary is 0, it's just a real number
+      if (im === 0) {
+        return { type: TokenType.NUMBER, value: parseFloat(numStr) };
+      }
+      return { type: TokenType.NUMBER, value: { re: parseFloat(numStr), im } };
     }
 
     return { type: TokenType.NUMBER, value: parseFloat(numStr) };
@@ -441,6 +446,11 @@ class Parser {
       return elements[0];
     }
 
+    // Character vector: array of single-char strings → string
+    if (elements.every(el => typeof el === 'string' && el.length === 1)) {
+      return elements.join('');
+    }
+
     return elements;
   }
 
@@ -455,12 +465,9 @@ class Parser {
       this.advance();
     }
 
-    // Empty brackets
+    // Empty brackets - invalid APLAN (no prototype)
     if (this.check(TokenType.RBRACKET)) {
-      this.advance();
-      const result = [];
-      result._shape = [0];
-      return result;
+      throw new Error('Empty brackets [] are not valid APLAN');
     }
 
     const rows = [];

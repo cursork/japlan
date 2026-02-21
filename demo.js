@@ -105,7 +105,6 @@ demo('2×3 matrix', '[1 2 3 ⋄ 4 5 6]');
 demo('3×1 column matrix', '[1 ⋄ 2 ⋄ 3]');
 demo('Padding shorter rows', '[1 2 ⋄ 3 4 5]');
 demo('String matrix', "['a' 'b' ⋄ 'c' 'd']");
-demo('Empty brackets', '[]');
 
 demo('Matrix with newlines', `[
  1 2 3

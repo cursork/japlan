@@ -257,8 +257,14 @@ test('single element vector (leading sep)', () => {
   assertEq(parse('(⋄ 42)'), [42]);
 });
 
-test('vector of strings', () => {
-  assertEq(parse("('a' ⋄ 'b' ⋄ 'c')"), ['a', 'b', 'c']);
+test('character vector', () => {
+  // Vector of single chars becomes string (APL character vector)
+  assertEq(parse("('a' ⋄ 'b' ⋄ 'c')"), 'abc');
+});
+
+test('vector of multi-char strings', () => {
+  // Multi-char strings stay as array
+  assertEq(parse("('ab' ⋄ 'cd')"), ['ab', 'cd']);
 });
 
 test('vector with number strands', () => {
@@ -294,11 +300,13 @@ test('matrix with different row lengths (padding)', () => {
   assertEq(result[1], [3, 4, 5]);
 });
 
-test('empty brackets', () => {
-  const result = parse('[]');
-  assert(Array.isArray(result), 'empty matrix should be array');
-  assertEq(result._shape, [0]);
-  assertEq(result.length, 0);
+test('empty brackets error', () => {
+  try {
+    parse('[]');
+    assert(false, 'should throw');
+  } catch (e) {
+    assert(e.message.includes('Empty brackets'), 'error message');
+  }
 });
 
 // ============== Namespaces ==============
