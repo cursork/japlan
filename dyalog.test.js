@@ -221,6 +221,11 @@ test("[(name: 'Alice' ⋄ age: 30) ⋄ (name: 'Bob' ⋄ age: 25)]");
 test("(rows: [1 2 ⋄ 3 4] ⋄ cols: [5 6 ⋄ 7 8])");
 test("('header' ⋄ [1 2 3 ⋄ 4 5 6] ⋄ 'footer')");
 
+// === Higher-rank arrays ===
+console.log('\n--- Higher-Rank Arrays ---');
+test('[[1 2 ⋄ 3 4] ⋄ [5 6 ⋄ 7 8]]');  // 3D array
+test('[[[1 2] [3 4]] ⋄ [[5 6] [7 8]]]');  // nested brackets
+
 // === Newline separators (local comparison - shell can't pass newlines to gritt) ===
 console.log('\n--- Newline Separators ---');
 

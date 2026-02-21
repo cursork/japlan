@@ -456,13 +456,17 @@ class Parser {
 
   /**
    * Parse bracketed content: [a ⋄ b ⋄ c] - creates matrix
+   * In brackets, each separated value becomes a major cell.
+   * Without separators, each element (not strand) becomes a major cell.
    */
   parseBracketed() {
     this.consume(TokenType.LBRACKET, 'Expected [');
 
     // Skip leading separators
+    let hasSeparator = false;
     while (this.check(TokenType.SEPARATOR)) {
       this.advance();
+      hasSeparator = true;
     }
 
     // Empty brackets - invalid APLAN (no prototype)
@@ -478,6 +482,7 @@ class Parser {
 
       // Skip separators between rows
       if (this.check(TokenType.SEPARATOR)) {
+        hasSeparator = true;
         while (this.check(TokenType.SEPARATOR)) {
           this.advance();
         }
@@ -486,8 +491,15 @@ class Parser {
 
     this.consume(TokenType.RBRACKET, 'Expected ]');
 
+    // Without separators, unpack strands so each element is a major cell
+    // e.g., [1 2] → 2 rows, not 1 row of strand
+    let finalRows = rows;
+    if (!hasSeparator && rows.length === 1 && Array.isArray(rows[0]) && !rows[0]._shape) {
+      finalRows = rows[0];
+    }
+
     // Convert rows to matrix
-    return rowsToMatrix(rows);
+    return rowsToMatrix(finalRows);
   }
 }
 
