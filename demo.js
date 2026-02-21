@@ -1,41 +1,46 @@
 /**
  * APLAN Demo - Shows all test cases with inputs and outputs
  *
- * Run with: node demo.js
+ * Run with: node demo.js [--diamond]
+ * Output is valid markdown
  */
 
-import { parse, serialize } from './aplan.js';
+import { parse, serialize } from './japlan.js';
+
+const useDiamond = process.argv.includes('--diamond');
 
 function demo(title, source, options = {}) {
-  console.log(`\n### ${title}`);
-  console.log(`Input:  ${source.replace(/\n/g, '\\n')}`);
+  console.log(`\n### ${title}\n`);
+  console.log('```apl');
+  console.log(source);
+  console.log('```\n');
 
   try {
     const parsed = parse(source);
-    const display = JSON.stringify(parsed, null, 2).replace(/\n/g, '\n        ');
-    console.log(`Parsed: ${display}`);
+    console.log('**Parsed:**');
+    console.log('```javascript');
+    console.log(JSON.stringify(parsed, null, 2));
+    console.log('```\n');
 
     if (!options.skipSerialize) {
-      const serialized = serialize(parsed, { useDiamond: true });
-      console.log(`Serial: ${serialized.replace(/\n/g, '\\n')}`);
+      const serialized = serialize(parsed, { useDiamond });
+      console.log('**Output:**');
+      console.log('```apl');
+      console.log(serialized);
+      console.log('```');
     }
   } catch (e) {
-    console.log(`Error:  ${e.message}`);
+    console.log(`**Error:** ${e.message}`);
   }
 }
 
 function section(name) {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`  ${name}`);
-  console.log('='.repeat(60));
+  console.log(`\n---\n\n## ${name}\n`);
 }
 
-console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║                    APLAN PARSER DEMO                         ║
-║         JavaScript Parser for Dyalog APL Array Notation      ║
-╚══════════════════════════════════════════════════════════════╝
-`);
+console.log('# APLAN Parser Demo\n');
+console.log('JavaScript Parser for Dyalog APL Array Notation\n');
+console.log('This is not a demo for learning - more to test that all features work...\n');
 
 // ============== Numbers ==============
 section('NUMBERS');
@@ -162,66 +167,32 @@ demo('Vector of matrices', '([1 2 ⋄ 3 4] ⋄ [5 6 ⋄ 7 8])');
 demo('Namespace with matrix', "(name: 'data' ⋄ matrix: [1 2 ⋄ 3 4])");
 demo('Matrix of nested vectors', '[(1 ⋄ 2) ⋄ (3 ⋄ 4)]');
 
-// ============== Serialization Examples ==============
-section('SERIALIZATION (JavaScript → APLAN)');
+// ============== Matrix Modification Workflow ==============
+section('MATRIX MODIFICATION WORKFLOW');
 
-console.log('\n### Number');
-console.log('Input:  42');
-console.log(`Output: ${serialize(42)}`);
+console.log('### Receive matrix, modify cell, re-transmit\n');
 
-console.log('\n### Negative number');
-console.log('Input:  -5');
-console.log(`Output: ${serialize(-5)}`);
+console.log('**Step 1:** Receive matrix from APLAN\n');
+console.log('```javascript');
+console.log("const mat = parse('[1 2 ⋄ 3 4]');");
+const mat = parse('[1 2 ⋄ 3 4]');
+console.log(`// mat = ${JSON.stringify(mat)}`);
+console.log(`// mat._shape = ${JSON.stringify(mat._shape)}`);
+console.log('```\n');
 
-console.log('\n### String');
-console.log('Input:  "hello"');
-console.log(`Output: ${serialize("hello")}`);
+console.log('**Step 2:** Modify a cell using standard JS array access\n');
+console.log('```javascript');
+console.log('mat[0][1] = 99;');
+mat[0][1] = 99;
+console.log(`// mat = ${JSON.stringify(mat)}`);
+console.log('```\n');
 
-console.log('\n### String with quote');
-console.log('Input:  "it\'s"');
-console.log(`Output: ${serialize("it's")}`);
-
-console.log('\n### Number array');
-console.log('Input:  [1, 2, 3]');
-console.log(`Output: ${serialize([1, 2, 3])}`);
-
-console.log('\n### Mixed array');
-console.log('Input:  [1, "two", 3]');
-console.log(`Output: ${serialize([1, "two", 3], { useDiamond: true })}`);
-
-console.log('\n### Empty array');
-console.log('Input:  []');
-console.log(`Output: ${serialize([])}`);
-
-console.log('\n### Complex number');
-console.log('Input:  { re: 3, im: 4 }');
-console.log(`Output: ${serialize({ re: 3, im: 4 })}`);
-
-console.log('\n### Namespace (object)');
-console.log('Input:  { x: 1, y: 2 }');
-console.log(`Output: ${serialize({ x: 1, y: 2 }, { useDiamond: true })}`);
-
-console.log('\n### Nested array');
-console.log('Input:  [[1, 2], [3, 4]]');
-console.log(`Output: ${serialize([[1, 2], [3, 4]], { useDiamond: true })}`);
-
-// ============== Summary ==============
-console.log(`
-${'='.repeat(60)}
-  SUMMARY
-${'='.repeat(60)}
-
-APLAN Syntax:
-  • Vectors:    (a ⋄ b ⋄ c)     or multiline
-  • Matrices:   [a ⋄ b ⋄ c]     rows become major cells
-  • Namespaces: (x: 1 ⋄ y: 2)   key-value pairs
-  • Numbers:    42  ¯5  3.14  1E5  3J4
-  • Strings:    'text'  'it''s'
-  • Zilde:      ⍬ (empty vector)
-
-JavaScript Representation:
-  • Scalars  → number | string | { re, im }
-  • Vectors  → array
-  • Matrices → nested array with _shape property
-  • Namespaces → object with APL_NS Symbol
-`);
+console.log('**Step 3:** Re-serialize to APLAN\n');
+console.log('```javascript');
+console.log('serialize(mat)');
+console.log('```\n');
+console.log('**Output:**');
+console.log('```apl');
+const reserializedMat = serialize(mat, { useDiamond });
+console.log(reserializedMat);
+console.log('```');

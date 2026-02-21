@@ -1,10 +1,10 @@
 /**
- * Test suite for APLAN parser/serializer
+ * Test suite for japlan - APLAN parser/serializer
  *
- * Run with: node aplan.test.js
+ * Run with: node japlan.test.js
  */
 
-import { parse, serialize, equal, get, zilde, APL_NS } from './aplan.js';
+import { parse, serialize, equal, get, zilde, _ns } from './japlan.js';
 
 let passed = 0;
 let failed = 0;
@@ -306,12 +306,12 @@ console.log('\n--- Namespaces ---');
 
 test('empty namespace', () => {
   const result = parse('()');
-  assertEq(result[APL_NS], true);
+  assertEq(result[_ns], true);
 });
 
 test('simple namespace', () => {
   const result = parse('(x: 1 ⋄ y: 2)');
-  assertEq(result[APL_NS], true);
+  assertEq(result[_ns], true);
   assertEq(result.x, 1);
   assertEq(result.y, 2);
 });
@@ -328,7 +328,7 @@ test('namespace with array value', () => {
 
 test('nested namespace', () => {
   const result = parse('(outer: (inner: 42))');
-  assertEq(result.outer[APL_NS], true);
+  assertEq(result.outer[_ns], true);
   assertEq(result.outer.inner, 42);
 });
 
@@ -397,7 +397,7 @@ test('serialize complex number', () => {
 
 test('serialize namespace', () => {
   const ns = { x: 1, y: 2 };
-  ns[APL_NS] = true;
+  ns[_ns] = true;
   const result = serialize(ns, { useDiamond: true });
   assert(result.includes('x: 1'));
   assert(result.includes('y: 2'));
@@ -496,6 +496,15 @@ test('round-trip: column matrix', () => {
   assertEq(parsed[2], [3]);
 });
 
+test('modify matrix cell and re-serialize', () => {
+  const mat = parse('[1 2 ⋄ 3 4]');
+  mat[0][1] = 99;
+  const serialized = serialize(mat, { useDiamond: true });
+  const reparsed = parse(serialized);
+  assertEq(reparsed[0][1], 99);
+  assertEq(reparsed._shape, [2, 2]);
+});
+
 // ============== Complex Nesting ==============
 console.log('\n--- Complex Nesting ---');
 
@@ -511,7 +520,7 @@ test('vector containing matrices', () => {
 test('namespace with matrix value', () => {
   const source = "(data: [1 2 ⋄ 3 4] ⋄ name: 'test')";
   const parsed = parse(source);
-  assertEq(parsed[APL_NS], true);
+  assertEq(parsed[_ns], true);
   assert(parsed.data._shape, 'data should have _shape');
 });
 

@@ -2,15 +2,17 @@
   "name": "japlan",
   "version": "1.0.0",
   "description": "JavaScript parser/serializer for Dyalog APL Array Notation (APLAN)",
-  "main": "aplan.js",
+  "main": "japlan.js",
   "type": "module",
   "scripts": {
-    "test": "node aplan.test.js"
+    "test": "node japlan.test.js",
+    "test:readme": "node readme.test.js"
   },
   "keywords": [
     "apl",
     "dyalog",
     "aplan",
+    "japlan",
     "array-notation",
     "parser",
     "serializer"

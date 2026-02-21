@@ -1,5 +1,5 @@
 /**
- * APLAN - JavaScript parser/serializer for Dyalog APL Array Notation
+ * japlan - JavaScript parser/serializer for Dyalog APL Array Notation (APLAN)
  *
  * Array Notation is a literal syntax for APL arrays:
  * - Vectors: (a ⋄ b ⋄ c) or (a\nb\nc)
@@ -40,7 +40,7 @@ zilde._isZilde = true;
 Object.freeze(zilde);
 
 // Namespace marker - Symbol avoids collision with user keys and doesn't appear in Object.keys()
-const APL_NS = Symbol.for('aplan.namespace');
+const _ns = Symbol.for('aplan.namespace');
 
 // APL identifier start characters (simplified - covers common cases)
 const isNameStart = (ch) => /[A-Za-z_∆⍙Ⓐ-Ⓩ]/.test(ch) || (ch >= 'À' && ch <= 'ü');
@@ -258,7 +258,7 @@ class Tokenizer {
  * - Scalars: number, string, { re, im } for complex
  * - Vectors: arrays
  * - Matrices: nested arrays with _shape property
- * - Namespaces: objects with APL_NS Symbol property
+ * - Namespaces: objects with _ns Symbol property
  * - Zilde: frozen empty array with _isZilde property
  */
 class Parser {
@@ -368,7 +368,7 @@ class Parser {
     if (this.check(TokenType.RPAREN)) {
       this.advance();
       const ns = {};
-      ns[APL_NS] = true;
+      ns[_ns] = true;
       return ns;
     }
 
@@ -387,7 +387,7 @@ class Parser {
    */
   parseNamespace() {
     const ns = {};
-    ns[APL_NS] = true;
+    ns[_ns] = true;
 
     while (!this.check(TokenType.RPAREN) && !this.check(TokenType.EOF)) {
       // Skip separators
@@ -630,7 +630,7 @@ class Serializer {
     }
 
     // Namespace
-    if (value[APL_NS]) {
+    if (value[_ns]) {
       return this.serializeNamespace(value, depth);
     }
 
@@ -642,7 +642,7 @@ class Serializer {
     // Object without marker - treat as namespace
     if (typeof value === 'object') {
       const ns = { ...value };
-      ns[APL_NS] = true;
+      ns[_ns] = true;
       return this.serializeNamespace(ns, depth);
     }
 
@@ -872,8 +872,8 @@ function equal(a, b) {
 
 // Export for Node.js
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parse, serialize, equal, get, zilde, APL_NS, Tokenizer, Parser, Serializer };
+  module.exports = { parse, serialize, equal, get, zilde, _ns, Tokenizer, Parser, Serializer };
 }
 
 // Export for ES modules
-export { parse, serialize, equal, get, zilde, APL_NS, Tokenizer, Parser, Serializer };
+export { parse, serialize, equal, get, zilde, _ns, Tokenizer, Parser, Serializer };
