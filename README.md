@@ -33,8 +33,10 @@ A simple `npm test` will run the unit tests in `japlan.test.js`. Use `npm run te
 
 ### CLI
 
-**VERY WIP**, with the possibility it might not get more attention. Extremely
-simple way to test from the command line. Doesn't support multiline, for example.
+The REPL is rudimentary and doesn't support eg multiline input. It requires
+thought, and I'm not sure of its benefit.
+
+Piping multiline input in does work, however.
 
 _Optionally_ install globally, using your checkout:
 
