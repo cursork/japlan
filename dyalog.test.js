@@ -10,18 +10,24 @@
  *   3. Parse Dyalog's output with japlan → JS value
  *   4. Compare the two JS values with equal()
  *
- * Requires: Dyalog APL accessible via gritt on localhost:4502
+ * Requires: a Dyalog session with a RIDE port open (default localhost:4502).
+ * Talks to it with the vendored tools/ripple - core Perl only, so it works
+ * with any POSIX system. Override with RIPPLE=/path/to/ripple or ADDR=host:port
  * Run with: node dyalog.test.js
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'url';
 import { parse, serialize, equal, _ns } from './japlan.js';
 
-const GRITT = process.env.GRITT || `${process.env.HOME}/dev/gritt/gritt`;
+const RIPPLE = process.env.RIPPLE || fileURLToPath(new URL('./tools/ripple', import.meta.url));
+const ADDR = process.env.ADDR || 'localhost:4502';
 
 function apl(expr) {
   try {
-    return execSync(`${GRITT} -e "${expr.replace(/"/g, '\\"')}"`, {
+    // execFile, not exec: the expression is passed as an argv entry, so no
+    // shell ever sees it and APLAN text needs no escaping
+    return execFileSync('perl', [RIPPLE, '-addr', ADDR, '-e', expr], {
       encoding: 'utf-8',
       timeout: 5000
     }).trim();
@@ -31,8 +37,7 @@ function apl(expr) {
 }
 
 function dyalogRoundTrip(aplan) {
-  // Escape for shell (double backslashes) then for APL string (double quotes)
-  const escaped = aplan.replace(/\\/g, '\\\\').replace(/'/g, "''");
+  const escaped = aplan.replace(/'/g, "''");
   // 1 = serialize with diamonds (proper APLAN format)
   return apl(`1 ⎕SE.Dyalog.Array.Serialise ⎕SE.Dyalog.Array.Deserialise '${escaped}'`);
 }

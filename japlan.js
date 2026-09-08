@@ -30,6 +30,7 @@ const TokenType = {
 const HIGH_MINUS = '¯';
 const DIAMOND = '⋄';
 const ZILDE = '⍬';
+const COMMENT = '⍝';
 
 // Separators: diamond, LF, CR, NEL
 const SEPARATORS = new Set([DIAMOND, '\n', '\r', '\x85']);
@@ -184,6 +185,13 @@ class Tokenizer {
 
       const ch = this.peek();
 
+      if (ch === COMMENT) {
+        while (!this.isAtEnd() && this.peek() !== '\n' && this.peek() !== '\r') {
+          this.advance();
+        }
+        continue;
+      }
+
       // Separators
       if (SEPARATORS.has(ch)) {
         this.advance();
@@ -328,10 +336,8 @@ class Parser {
       return this.parseBracketed();
     }
     if (token.type === TokenType.NAME) {
-      // Standalone name - this shouldn't happen in pure APLAN
-      // but might be part of an APL expression
-      this.advance();
-      return { __aplan_name__: token.value };
+      // A name is only meaningful as a namespace key, i.e. followed by ":".
+      throw new Error(`Unexpected name "${token.value}": names are only valid as namespace keys`);
     }
 
     throw new Error(`Unexpected token: ${token.type}`);
@@ -405,6 +411,11 @@ class Parser {
       this.consume(TokenType.COLON, 'Expected : after name');
       const value = this.parseValue();
 
+      // Dyalog rejects a repeated name with a DOMAIN ERROR rather than
+      // letting the later value win
+      if (Object.prototype.hasOwnProperty.call(ns, nameToken.value)) {
+        throw new Error(`Duplicate name in namespace: ${nameToken.value}`);
+      }
       ns[nameToken.value] = value;
 
       // Skip separators between pairs
@@ -446,8 +457,9 @@ class Parser {
       return elements[0];
     }
 
-    // Character vector: array of single-char strings → string
-    if (elements.every(el => typeof el === 'string' && el.length === 1)) {
+    // Character vector: array of single-char strings → string.
+    if (elements.length > 1
+        && elements.every(el => typeof el === 'string' && el.length === 1)) {
       return elements.join('');
     }
 
@@ -494,8 +506,13 @@ class Parser {
     // Without separators, unpack strands so each element is a major cell
     // e.g., [1 2] → 2 rows, not 1 row of strand
     let finalRows = rows;
-    if (!hasSeparator && rows.length === 1 && Array.isArray(rows[0]) && !rows[0]._shape) {
-      finalRows = rows[0];
+    if (!hasSeparator && rows.length === 1) {
+      if (typeof rows[0] === 'string') {
+        // String to character array, again
+        finalRows = Array.from(rows[0]);
+      } else if (Array.isArray(rows[0]) && !rows[0]._shape) {
+        finalRows = rows[0];
+      }
     }
 
     // Convert rows to matrix
@@ -515,8 +532,7 @@ function rowsToMatrix(rows) {
     return result;
   }
 
-  // Determine the shape of each row
-  const rowShapes = rows.map(r => getShape(r));
+  const rowShapes = rows.map(r => cellShape(r));
 
   // Find max shape (for padding)
   // In APLAN brackets, scalars are treated as 1-element vectors
@@ -525,7 +541,8 @@ function rowsToMatrix(rows) {
   for (let i = 0; i < maxRank; i++) {
     maxShape.push(Math.max(...rowShapes.map(s => {
       if (s.length === 0) return 1; // Scalar -> 1-element
-      return s[i] || 1;
+      // NB: an axis of 0 is a real length (⍬ rows), not a missing one
+      return i < s.length ? s[i] : 1;
     })));
   }
 
@@ -534,10 +551,10 @@ function rowsToMatrix(rows) {
   const result = [];
 
   for (const row of rows) {
-    const flat = flatten(row);
-    // Pad with zeros if needed
+    const flat = cellFlatten(row);
+    const fill = flat.length > 0 && flat.every(el => typeof el === 'string') ? ' ' : 0;
     while (flat.length < cellSize) {
-      flat.push(0);
+      flat.push(fill);
     }
     // If row shape is 1D, keep as flat array; otherwise nest
     if (maxShape.length === 1) {
@@ -576,7 +593,9 @@ function rebuildNested(flat, shape) {
 }
 
 /**
- * Get the shape of a value
+ * Get the shape of a value - this whole section is fiddly and annoying
+ * We store ._shape on values when we have it, otherwise use lengths
+ * TODO not sure if this covers all cases
  */
 function getShape(value) {
   if (value === null || value === undefined) return [];
@@ -585,15 +604,31 @@ function getShape(value) {
   if (Array.isArray(value)) {
     if (value._shape) return value._shape;
     if (value.length === 0) return [0];
-    // Check if all elements have same shape (for nested arrays)
     return [value.length];
   }
   return [];
 }
 
-/**
- * Flatten a value to a 1D array
- */
+// Strings were really bugging me
+function cellShape(value) {
+  if (typeof value === 'string') return [Array.from(value).length];
+  return getShape(value);
+}
+
+// Flatten a value used as a major cell, splitting strings into characters
+function cellFlatten(value) {
+  if (typeof value === 'string') return Array.from(value);
+  if (Array.isArray(value)) {
+    const result = [];
+    for (const el of value) {
+      result.push(...cellFlatten(el));
+    }
+    return result;
+  }
+  return flatten(value);
+}
+
+ //Flatten a value to a 1D array
 function flatten(value) {
   if (value === null || value === undefined) return [0];
   if (typeof value === 'number') return [value];
@@ -679,6 +714,7 @@ class Serializer {
     str = str.replace(/-/g, HIGH_MINUS);
     // Replace lowercase e with E
     str = str.replace(/e/g, 'E');
+    str = str.replace('E+', 'E');
     return str;
   }
 
@@ -701,12 +737,18 @@ class Serializer {
 
     // Check if all elements are numbers (use strand notation)
     if (arr.every(el => typeof el === 'number')) {
-      return arr.map(n => this.serializeNumber(n)).join(' ');
+      const strand = arr.map(n => this.serializeNumber(n)).join(' ');
+      // A bare "42" reads back as a scalar. A one-element vector needs a
+      // separator to keep its vector-ness: APL writes it as (42⋄).
+      return arr.length === 1 ? `(${strand}${DIAMOND})` : strand;
     }
 
     // Use parentheses with separators
-    const sep = this.getSeparator(depth);
     const items = arr.map(el => this.serialize(el, depth + 1));
+
+    if (items.length === 1) {
+      return `(${items[0]}${DIAMOND})`;
+    }
 
     if (this.useDiamond || items.some(i => i.includes('\n'))) {
       return '(' + items.join(` ${DIAMOND} `) + ')';
@@ -723,25 +765,41 @@ class Serializer {
       return '[]';
     }
 
+    return this.serializeCells(m, shape, depth);
+  }
+
+  serializeCells(cells, shape, depth) {
+    const rest = shape.slice(1);
     const rows = [];
 
-    for (let i = 0; i < m.length; i++) {
-      const rowData = flatten(m[i]);
-
-      // If row is simple numbers, format as strand
-      if (rowData.every(el => typeof el === 'number')) {
-        rows.push(rowData.map(n => this.serializeNumber(n)).join(' '));
+    for (let i = 0; i < cells.length; i++) {
+      if (rest.length > 1) {
+        rows.push(this.serializeCells(cells[i], rest, depth + 1));
       } else {
-        rows.push(rowData.map(el => this.serialize(el, depth + 1)).join(' '));
+        const rowData = flatten(cells[i]);
+        // An empty row is ⍬, not an empty strand (which would render as "")
+        if (rowData.length === 0) {
+          rows.push(ZILDE);
+        } else if (rowData.every(el => typeof el === 'number')) {
+          // If row is simple numbers, format as strand
+          rows.push(rowData.map(n => this.serializeNumber(n)).join(' '));
+        } else if (rowData.every(el => typeof el === 'string' && el.length === 1)) {
+          // A row of character scalars is one character vector
+          rows.push(this.serializeString(rowData.join('')));
+        } else {
+          rows.push(rowData.map(el => this.serialize(el, depth + 1)).join(' '));
+        }
       }
     }
 
+    const lead = rows.length === 1 ? DIAMOND : '';
+
     if (this.useDiamond) {
-      return '[' + rows.join(` ${DIAMOND} `) + ']';
+      return '[' + lead + rows.join(` ${DIAMOND} `) + ']';
     }
 
     const indent = ' '.repeat(this.indent);
-    return '[\n' + rows.map(r => indent + r).join('\n') + '\n]';
+    return '[' + lead + '\n' + rows.map(r => indent + r).join('\n') + '\n]';
   }
 
   serializeNamespace(ns, depth) {
@@ -761,9 +819,6 @@ class Serializer {
     return '(\n' + items.map(i => indent + i).join('\n') + '\n)';
   }
 
-  getSeparator(depth) {
-    return this.useDiamond ? ` ${DIAMOND} ` : '\n';
-  }
 }
 
 /**

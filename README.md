@@ -25,10 +25,14 @@ See [demo.md](demo.md) for comprehensive examples.
 
 ## Testing
 
-A simple `npm test` will run the unit tests in `japlan.test.js`. Use `npm run test:all` to run everything.
+A simple `npm test` will run the tests in `japlan.test.js`. Use `npm run test:all` to run everything.
 
 * `readme.test.js` - attempts to validate that any code inside this document works
-* `dyalog.test.js` - compares results against a running dyalog - NOTA BENE: requires [gritt](https://github.com/cursork/gritt) on your path for this moment
+* `dyalog.test.js` - compares results against a running dyalog. Needs a Dyalog
+  session with a RIDE port open (default `localhost:4502`); it talks to it with
+  the vendored [ripple](https://github.com/cursork/ripple) in `tools/`, which is
+  core Perl only and so ships with japlan. Override with `RIPPLE=/path/to/ripple`
+  or `ADDR=host:port`.
 * `cli.test.js` - sanity checks the CLI for testing
 
 ### CLI
@@ -117,6 +121,14 @@ zilde._isZilde          // true
 ### `parse(source: string): any`
 
 Parse APLAN string to JavaScript value.
+
+`⍝` comments are accepted and dropped, but the newline still separates — so
+`(x: 1 ⍝ note` / `y: 2)` is a two-entry namespace, not one run-on entry. A `⍝`
+between quotes is data, not a comment.
+
+Throws on input Dyalog itself rejects: a repeated name in a namespace
+(`(a: 1 ⋄ a: 2)`), and a name used anywhere other than as a namespace key
+(`(x 1)`).
 
 ### `serialize(value: any, options?): string`
 

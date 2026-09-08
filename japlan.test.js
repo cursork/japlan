@@ -37,9 +37,13 @@ function roundTrip(source, expected) {
   const parsed = parse(source);
   assertEq(parsed, expected, `Parse failed for: ${source}`);
 
-  const serialized = serialize(parsed, { useDiamond: true });
-  const reparsed = parse(serialized);
-  assertEq(reparsed, expected, `Round-trip failed for: ${source}`);
+  // Check both diamond and newline syntax
+  for (const opts of [{ useDiamond: true }, {}]) {
+    const how = opts.useDiamond ? 'diamond' : 'newline';
+    const serialized = serialize(parsed, opts);
+    const reparsed = parse(serialized);
+    assertEq(reparsed, expected, `Round-trip (${how}) failed for: ${source}`);
+  }
 }
 
 console.log('=== APLAN Parser Tests ===\n');
@@ -73,6 +77,17 @@ test('exponential', () => {
 
 test('exponential with negative exponent', () => {
   assertEq(parse('2.5E¯3'), 0.0025);
+});
+
+// JS can stringify large numbers as "1e+300" - it's weird
+test('serialize large exponent without a + sign', () => {
+  assertEq(serialize(1e300), '1E300');
+  assertEq(serialize(1.7976931348623157e308), '1.7976931348623157E308');
+  assertEq(serialize(-1e300), '¯1E300');
+});
+
+test('serialize small exponent uses high minus', () => {
+  assertEq(serialize(1e-300), '1E¯300');
 });
 
 test('complex number', () => {
@@ -255,6 +270,14 @@ test('single element vector (trailing sep)', () => {
 
 test('single element vector (leading sep)', () => {
   assertEq(parse('(⋄ 42)'), [42]);
+});
+
+// This was so so much fun - it's also very easy to get wrong hand-writing things
+test('single element character vector is not a character scalar', () => {
+  assertEq(parse("('a' ⋄)"), ['a']);
+  assertEq(parse("(⋄ 'a')"), ['a']);
+  assert(!equal(parse("'a'"), parse("('a' ⋄)")), "'a' and ('a'⋄) must differ");
+  assertEq(serialize(parse("('a' ⋄)"), { useDiamond: true }), "('a'⋄)");
 });
 
 test('character vector', () => {
@@ -591,6 +614,158 @@ test('complex with exponential', () => {
   const result = parse('1E2J3E1');
   assertEq(result.re, 100);
   assertEq(result.im, 30);
+});
+
+// ============== Divergences from Dyalog ==============
+
+console.log('\n--- Separator Significance ---');
+
+test('leading separator makes a one-element vector', () => {
+  assertEq(parse('(⋄ 42)'), [42]);
+  assertEq(serialize(parse('(⋄ 42)'), { useDiamond: true }), '(42⋄)');
+});
+
+test('trailing separator makes a one-element vector', () => {
+  assertEq(parse('(42 ⋄)'), [42]);
+  assertEq(serialize(parse('(42 ⋄)'), { useDiamond: true }), '(42⋄)');
+});
+
+test('one-element vector survives a round-trip', () => {
+  assertEq(parse(serialize(parse('(⋄ 42)'), { useDiamond: true })), [42]);
+});
+
+test('leading separator in brackets pins a single row', () => {
+  assertEq(parse('[⋄ 1 2]')._shape, [1, 2]);
+  assertEq(parse(serialize(parse('[⋄ 1 2]'), { useDiamond: true }))._shape, [1, 2]);
+});
+
+test('bracket stranding without a separator is n-by-1', () => {
+  assertEq(parse('[1 2]')._shape, [2, 1]);
+});
+
+console.log('\n--- Rank Above 2 ---');
+
+test('rank-3 array keeps its shape', () => {
+  assertEq(parse('[[1 2 ⋄ 3 4] ⋄ [5 6 ⋄ 7 8]]')._shape, [2, 2, 2]);
+});
+
+test('rank-3 array survives a round-trip', () => {
+  const src = '[[1 2 ⋄ 3 4] ⋄ [5 6 ⋄ 7 8]]';
+  const again = parse(serialize(parse(src), { useDiamond: true }));
+  assertEq(again._shape, [2, 2, 2]);
+  assertEq(again, [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]);
+});
+
+test('nested bracket strands stay rank 3', () => {
+  assertEq(parse('[[1 2] ⋄ [3 4]]')._shape, [2, 2, 1]);
+});
+
+console.log('\n--- Row Shape and Padding ---');
+
+// Pad ragged *numeric* rows: [1 2 ⋄ 3 4 5] is [⋄1 2 0⋄3 4 5⋄].
+test('ragged numeric rows are padded with zeros', () => {
+  assertEq(parse('[1 2 ⋄ 3 4 5]')._shape, [2, 3]);
+  assertEq(parse('[1 2 ⋄ 3 4 5]'), [[1, 2, 0], [3, 4, 5]]);
+});
+
+test('a character row is as wide as its characters', () => {
+  assertEq(parse("[1 2 ⋄ 'ab']")._shape, [2, 2]);
+  assertEq(serialize(parse("[1 2 ⋄ 'ab']"), { useDiamond: true }), "[1 2 ⋄ 'ab']");
+});
+
+test('empty rows stay empty rather than becoming zero', () => {
+  assertEq(parse('[⍬ ⋄ ⍬]')._shape, [2, 0]);
+  assertEq(serialize(parse('[⍬ ⋄ ⍬]'), { useDiamond: true }), '[⍬ ⋄ ⍬]');
+});
+
+console.log('\n--- Namespace Names ---');
+
+// APL rejects a repeated name with a DOMAIN ERROR rather than taking the last.
+test('duplicate names in a namespace are rejected', () => {
+  let threw = false;
+  try {
+    parse('(a: 1 ⋄ a: 2)');
+  } catch (e) {
+    threw = true;
+  }
+  assert(threw, 'expected (a: 1 ⋄ a: 2) to be rejected');
+});
+
+// ============== Comments ==============
+console.log('\n--- Comments ---');
+
+// 1 ⎕SE.Dyalog.Array.Serialise ⎕SE.Dyalog.Array.Deserialise ... → (x:1⋄y:2⋄)
+test('comment does not swallow the newline separator', () => {
+  const ns = parse('(x: 1 ⍝ note\n y: 2)');
+  assertEq(ns.x, 1);
+  assertEq(ns.y, 2);
+  assert(ns[_ns], 'should be a namespace');
+});
+
+test('comment on its own line', () => {
+  const ns = parse('(x: 1\n⍝ whole line\ny: 2)');
+  assertEq(ns.x, 1);
+  assertEq(ns.y, 2);
+});
+
+test('comment inside a vector', () => {
+  assertEq(parse('(1 ⍝ a\n2)'), [1, 2]);
+});
+
+test('comment inside a matrix', () => {
+  const m = parse('[1 2 ⍝ row\n3 4]');
+  assertEq(m._shape, [2, 2]);
+  assertEq(m[1], [3, 4]);
+});
+
+test('leading and trailing comments', () => {
+  assertEq(parse('⍝ leading\n42'), 42);
+  assertEq(parse('42 ⍝ trailing'), 42);
+  assertEq(parse('1 2 ⍝ trailing'), [1, 2]);
+});
+
+// A ⍝ between quotes is data, not a comment.
+test('lamp inside a string is not a comment', () => {
+  assertEq(parse("'a⍝b'"), 'a⍝b');
+  assertEq(parse("(x: 'a⍝b')").x, 'a⍝b');
+});
+
+console.log('\n--- Fill Element ---');
+
+test('short character row is padded with a space', () => {
+  assertEq(parse("['a' ⋄ 'bc']"), [['a', ' '], ['b', 'c']]);
+  assertEq(serialize(parse("['a' ⋄ 'bc']"), { useDiamond: true }), "['a ' ⋄ 'bc']");
+});
+
+test('character row is space-padded even alongside numeric rows', () => {
+  assertEq(parse("[1 2 3 ⋄ 'ab']"), [[1, 2, 3], ['a', 'b', ' ']]);
+});
+
+test('numeric row is still zero-padded alongside character rows', () => {
+  assertEq(parse("[1 2 ⋄ 'abc']"), [[1, 2, 0], ['a', 'b', 'c']]);
+});
+
+console.log('\n--- Character Vector Stranding ---');
+
+test('a lone character vector in brackets unpacks per character', () => {
+  assertEq(parse("['abc']")._shape, [3, 1]);
+  assertEq(parse("['abc']"), [['a'], ['b'], ['c']]);
+});
+
+test('separated character rows are not unpacked', () => {
+  assertEq(parse("['ab' ⋄ 'cd']")._shape, [2, 2]);
+});
+
+console.log('\n--- Rejected Input ---');
+
+test('a bare name outside a namespace key is rejected', () => {
+  let threw = false;
+  try {
+    parse('(x 1)');
+  } catch (e) {
+    threw = true;
+  }
+  assert(threw, 'expected (x 1) to be rejected');
 });
 
 // ============== Summary ==============
